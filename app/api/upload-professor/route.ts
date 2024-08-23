@@ -51,12 +51,14 @@ const chunkText = (text: string, chunkSize: number): string[] => {
 // Function to load documents from the web and extract comments and professor's name
 const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs: Document[], analyzedComments: any[], professorName: string | null }> => {
   try {
+    // Launch Puppeteer with Chromium in serverless mode
     const browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath(),  // Use the executable path from Chromium
       headless: chromium.headless,
     });
+    
     logs.push(`Opened browser for URL: ${url}`);
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });

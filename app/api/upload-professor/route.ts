@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
-import puppeteer from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import puppeteer from "puppeteer-core";
+import chromium from "chrome-aws-lambda";
 import { Document } from "@langchain/core/documents";
 import OpenAI from "openai";
-import { db } from '../../config/Firebase';  // Import Firebase Firestore
-import { collection, addDoc } from "firebase/firestore"; 
+import { db } from "../../config/Firebase"; // Import Firebase Firestore
+import { collection, addDoc } from "firebase/firestore";
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -15,7 +15,10 @@ const openai = new OpenAI({
 });
 
 // Function to classify sentiment
-async function classifySentiment(review: string, logs: string[]): Promise<string | null> {
+async function classifySentiment(
+  review: string,
+  logs: string[]
+): Promise<string | null> {
   try {
     logs.push(`Classifying sentiment for review: "${review}"`);
     const response = await openai.chat.completions.create({
@@ -49,19 +52,27 @@ const chunkText = (text: string, chunkSize: number): string[] => {
 };
 
 // Function to load documents from the web and extract comments and professor's name
-const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs: Document[], analyzedComments: any[], professorName: string | null }> => {
+const loadDocumentsFromWeb = async (
+  url: string,
+  logs: string[]
+): Promise<{
+  docs: Document[];
+  analyzedComments: any[];
+  professorName: string | null;
+}> => {
   try {
     // Ensure Puppeteer is using the correct Chromium path for serverless environments
-    const browser = await puppeteer.launch({
-      args: [...chromium.args, '--disable-gpu', '--single-process'], // Additional args to ensure compatibility
+    const browser = await chromium.puppeteer.launch({
+      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(), // Use executable path provided by chromium package
-      headless: chromium.headless,
+      executablePath: await chromium.executablePath,
+      headless: true,
+      ignoreHTTPSErrors: true,
     });
 
     logs.push(`Opened browser for URL: ${url}`);
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await page.goto(url, { waitUntil: "domcontentloaded" });
     logs.push(`Page loaded: ${url}`);
 
     // Extract the page content as plain text
@@ -69,8 +80,12 @@ const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs
 
     // Extract the professor's name
     const professorName = await page.evaluate(() => {
-      const nameElement = document.querySelector('.NameTitle__Name-dowf0z-0.cfjPUG');
-      return nameElement && nameElement.textContent ? nameElement.textContent.trim() : null;
+      const nameElement = document.querySelector(
+        ".NameTitle__Name-dowf0z-0.cfjPUG"
+      );
+      return nameElement && nameElement.textContent
+        ? nameElement.textContent.trim()
+        : null;
     });
 
     // Log the extracted professor's name
@@ -78,8 +93,12 @@ const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs
 
     // Use the correct selector based on the page structure
     const comments = await page.evaluate(() => {
-      const commentElements = Array.from(document.querySelectorAll('.Comments__StyledComments-dzzyvm-0'));
-      return commentElements.map(el => el.textContent ? el.textContent.trim() : '');
+      const commentElements = Array.from(
+        document.querySelectorAll(".Comments__StyledComments-dzzyvm-0")
+      );
+      return commentElements.map((el) =>
+        el.textContent ? el.textContent.trim() : ""
+      );
     });
 
     // Perform sentiment analysis on extracted comments
@@ -95,7 +114,9 @@ const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs
     );
 
     // Log analyzed comments
-    logs.push(`Analyzed Comments: ${JSON.stringify(analyzedComments, null, 2)}`);
+    logs.push(
+      `Analyzed Comments: ${JSON.stringify(analyzedComments, null, 2)}`
+    );
 
     // Upload analyzed comments to Firestore under the professor's name
     if (professorName) {
@@ -116,17 +137,22 @@ const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs
     const chunks = chunkText(content, chunkSize);
 
     // Create Document objects from chunks
-    const docs = chunks.map((chunk, index) => new Document({
-      pageContent: chunk,
-      metadata: { url, chunkIndex: index },
-    }));
+    const docs = chunks.map(
+      (chunk, index) =>
+        new Document({
+          pageContent: chunk,
+          metadata: { url, chunkIndex: index },
+        })
+    );
 
     // If professor's name is available, create a document for it
     if (professorName) {
-      docs.unshift(new Document({
-        pageContent: `Full name: ${professorName}`,
-        metadata: { url, chunkIndex: -1 }, // Assign a special index for the professor's name
-      }));
+      docs.unshift(
+        new Document({
+          pageContent: `Full name: ${professorName}`,
+          metadata: { url, chunkIndex: -1 }, // Assign a special index for the professor's name
+        })
+      );
     }
 
     return { docs, analyzedComments, professorName };
@@ -137,14 +163,22 @@ const loadDocumentsFromWeb = async (url: string, logs: string[]): Promise<{ docs
 };
 
 // Function to set up Pinecone and Langchain, and handle professor's name
-const setupPineconeLangchain = async (urls: string[], logs: string[]): Promise<{ vectorStore: PineconeStore, analyzedComments: any[], professorNames: string[] }> => {
+const setupPineconeLangchain = async (
+  urls: string[],
+  logs: string[]
+): Promise<{
+  vectorStore: PineconeStore;
+  analyzedComments: any[];
+  professorNames: string[];
+}> => {
   try {
     let allDocs: Document[] = [];
     let allAnalyzedComments: any[] = [];
     let professorNames: string[] = [];
 
     for (const url of urls) {
-      const { docs, analyzedComments, professorName } = await loadDocumentsFromWeb(url, logs);
+      const { docs, analyzedComments, professorName } =
+        await loadDocumentsFromWeb(url, logs);
       allDocs = allDocs.concat(docs);
       allAnalyzedComments = allAnalyzedComments.concat(analyzedComments);
       if (professorName) {
@@ -171,7 +205,11 @@ const setupPineconeLangchain = async (urls: string[], logs: string[]): Promise<{
     });
     logs.push("Vector store created");
 
-    return { vectorStore, analyzedComments: allAnalyzedComments, professorNames };
+    return {
+      vectorStore,
+      analyzedComments: allAnalyzedComments,
+      professorNames,
+    };
   } catch (error: any) {
     logs.push(`Error in setupPineconeLangchain: ${error.message}`);
     throw new Error(`Error in setupPineconeLangchain: ${error.message}`);
@@ -188,11 +226,17 @@ export const POST = async (req: NextRequest) => {
 
     if (!url) {
       logs.push("No URL provided");
-      return NextResponse.json({ error: "No URL provided", logs }, { status: 400 });
+      return NextResponse.json(
+        { error: "No URL provided", logs },
+        { status: 400 }
+      );
     }
 
-    const { vectorStore, analyzedComments, professorNames } = await setupPineconeLangchain([url], logs);
-    logs.push("Pinecone and LangChain setup complete, documents inserted into vector store");
+    const { vectorStore, analyzedComments, professorNames } =
+      await setupPineconeLangchain([url], logs);
+    logs.push(
+      "Pinecone and LangChain setup complete, documents inserted into vector store"
+    );
 
     return NextResponse.json({
       message: "Document successfully inserted into vector store",
@@ -203,7 +247,10 @@ export const POST = async (req: NextRequest) => {
   } catch (error: any) {
     logs.push(`Error processing URL: ${error.message}`);
     console.error("Error processing URL in POST handler:", error);
-    return NextResponse.json({ error: "Internal Server Error", logs }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", logs },
+      { status: 500 }
+    );
   }
 };
 

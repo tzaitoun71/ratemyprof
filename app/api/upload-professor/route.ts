@@ -63,10 +63,10 @@ const loadDocumentsFromWeb = async (
   try {
     // Ensure Puppeteer is using the correct Chromium path for serverless environments
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath,
-      headless: chromium.headless,
+      headless: true,
       ignoreHTTPSErrors: true,
     });
 

@@ -51,6 +51,7 @@ const chunkText = (text: string, chunkSize: number): string[] => {
   return chunks;
 };
 
+
 // Function to load documents from the web and extract comments and professor's name
 const loadDocumentsFromWeb = async (
   url: string,
@@ -61,12 +62,12 @@ const loadDocumentsFromWeb = async (
   professorName: string | null;
 }> => {
   try {
+    // Launch Puppeteer with chrome-aws-lambda
     const browser = await puppeteer.launch({
       args: chrome.args,
-      executablePath: await chrome.executablePath,
+      executablePath: await chrome.executablePath || '/usr/bin/chromium-browser',
       headless: chrome.headless,
     });
-  
 
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });
@@ -157,6 +158,7 @@ const loadDocumentsFromWeb = async (
     throw new Error(`Error in loadDocumentsFromWeb: ${error.message}`);
   }
 };
+
 
 // Function to set up Pinecone and Langchain, and handle professor's name
 const setupPineconeLangchain = async (

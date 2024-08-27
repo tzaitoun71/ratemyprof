@@ -7,7 +7,7 @@ import { Document } from "@langchain/core/documents";
 import OpenAI from "openai";
 import { db } from "../../config/Firebase"; // Import Firebase Firestore
 import { collection, addDoc } from "firebase/firestore";
-import edgeChromium from 'chrome-aws-lambda'
+import chrome from 'chrome-aws-lambda'
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -61,12 +61,12 @@ const loadDocumentsFromWeb = async (
   professorName: string | null;
 }> => {
   try {
-    const executablePath = await edgeChromium.executablePath
     const browser = await puppeteer.launch({
-      executablePath,
-      args: edgeChromium.args,
-      headless: false,
-    })
+      args: chrome.args,
+      executablePath: await chrome.executablePath,
+      headless: chrome.headless,
+    });
+  
 
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });

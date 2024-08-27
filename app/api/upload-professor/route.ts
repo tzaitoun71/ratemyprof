@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
-import puppeteer from "puppeteer-core";
-import chromium from "chrome-aws-lambda";
+import puppeteerExtra from "puppeteer-core";
 import { Document } from "@langchain/core/documents";
 import OpenAI from "openai";
 import { db } from "../../config/Firebase"; // Import Firebase Firestore
 import { collection, addDoc } from "firebase/firestore";
+import chromium from "@sparticuz/chromium";
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -61,19 +61,16 @@ const loadDocumentsFromWeb = async (
   professorName: string | null;
 }> => {
   try {
-    // Ensure Puppeteer is using the correct Chromium path for serverless environments
-    const browser = await puppeteer.launch({
-      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
+    const browser = await puppeteerExtra.launch({
+      args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath,
-      headless: true,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
 
-    logs.push(`Opened browser for URL: ${url}`);
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    logs.push(`Page loaded: ${url}`);
+    await page.goto(url, { waitUntil: 'networkidle0' });
 
     // Extract the page content as plain text
     const content = await page.evaluate(() => document.body.innerText);

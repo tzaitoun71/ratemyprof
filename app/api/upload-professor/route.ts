@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
-import puppeteer from "puppeteer-core";
+const cheerio = require('cheerio')
+import axios from "axios";
 import { Document } from "@langchain/core/documents";
 import OpenAI from "openai";
 import { db } from "../../config/Firebase"; // Import Firebase Firestore
 import { collection, addDoc } from "firebase/firestore";
-import chrome from 'chrome-aws-lambda'
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -51,7 +51,6 @@ const chunkText = (text: string, chunkSize: number): string[] => {
   return chunks;
 };
 
-
 // Function to load documents from the web and extract comments and professor's name
 const loadDocumentsFromWeb = async (
   url: string,
@@ -62,45 +61,22 @@ const loadDocumentsFromWeb = async (
   professorName: string | null;
 }> => {
   try {
-    // Launch Puppeteer with chrome-aws-lambda
-    const browser = await puppeteer.launch({
-      args: chrome.args,
-      executablePath: await chrome.executablePath || '/usr/bin/chromium-browser',
-      headless: chrome.headless,
-    });
-
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle0' });
-
-    // Extract the page content as plain text
-    const content = await page.evaluate(() => document.body.innerText);
+    // Fetch the HTML content of the page using axios
+    const { data: html } = await axios.get(url);
+    const $ = cheerio.load(html); // Load the HTML into Cheerio
 
     // Extract the professor's name
-    const professorName = await page.evaluate(() => {
-      const nameElement = document.querySelector(
-        ".NameTitle__Name-dowf0z-0.cfjPUG"
-      );
-      return nameElement && nameElement.textContent
-        ? nameElement.textContent.trim()
-        : null;
-    });
-
-    // Log the extracted professor's name
+    const professorName = $(".NameTitle__Name-dowf0z-0.cfjPUG").text().trim();
     logs.push(`Extracted professor's name: ${professorName}`);
 
-    // Use the correct selector based on the page structure
-    const comments = await page.evaluate(() => {
-      const commentElements = Array.from(
-        document.querySelectorAll(".Comments__StyledComments-dzzyvm-0")
-      );
-      return commentElements.map((el) =>
-        el.textContent ? el.textContent.trim() : ""
-      );
-    });
+    // Extract comments
+    const comments = $(".Comments__StyledComments-dzzyvm-0")
+      .map((_:any, element:any) => $(element).text().trim())
+      .get();
 
     // Perform sentiment analysis on extracted comments
     const analyzedComments = await Promise.all(
-      comments.map(async (comment) => {
+      comments.map(async (comment:any) => {
         const sentiment = await classifySentiment(comment, logs);
         return {
           comment,
@@ -111,9 +87,7 @@ const loadDocumentsFromWeb = async (
     );
 
     // Log analyzed comments
-    logs.push(
-      `Analyzed Comments: ${JSON.stringify(analyzedComments, null, 2)}`
-    );
+    logs.push(`Analyzed Comments: ${JSON.stringify(analyzedComments, null, 2)}`);
 
     // Upload analyzed comments to Firestore under the professor's name
     if (professorName) {
@@ -126,10 +100,8 @@ const loadDocumentsFromWeb = async (
       logs.push(`Document written with ID: ${docRef.id}`);
     }
 
-    await browser.close();
-    logs.push(`Browser closed for URL: ${url}`);
-
     // Split content into chunks of approximately 2000 characters each
+    const content = $("body").text();
     const chunkSize = 2000;
     const chunks = chunkText(content, chunkSize);
 
@@ -158,7 +130,6 @@ const loadDocumentsFromWeb = async (
     throw new Error(`Error in loadDocumentsFromWeb: ${error.message}`);
   }
 };
-
 
 // Function to set up Pinecone and Langchain, and handle professor's name
 const setupPineconeLangchain = async (

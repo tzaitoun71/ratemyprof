@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "postinstall": "apt-get install -y libnss3" 
+    "lint": "next lint"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -17,7 +16,9 @@
     "@mui/icons-material": "^5.16.7",
     "@mui/material": "^5.16.7",
     "@pinecone-database/pinecone": "^3.0.1",
+    "axios": "^1.7.5",
     "chart.js": "^4.4.4",
+    "cheerio": "^1.0.0",
     "chrome-aws-lambda": "^10.1.0",
     "firebase": "^10.13.0",
     "langchain": "^0.2.16",

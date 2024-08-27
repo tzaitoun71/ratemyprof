@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
-import puppeteerExtra from "puppeteer-core";
+import puppeteer from "puppeteer-core";
 import { Document } from "@langchain/core/documents";
 import OpenAI from "openai";
 import { db } from "../../config/Firebase"; // Import Firebase Firestore
 import { collection, addDoc } from "firebase/firestore";
-import chromium from "@sparticuz/chromium";
+import edgeChromium from 'chrome-aws-lambda'
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -61,13 +61,12 @@ const loadDocumentsFromWeb = async (
   professorName: string | null;
 }> => {
   try {
-    const browser = await puppeteerExtra.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-    });
+    const executablePath = await edgeChromium.executablePath
+    const browser = await puppeteer.launch({
+      executablePath,
+      args: edgeChromium.args,
+      headless: false,
+    })
 
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });

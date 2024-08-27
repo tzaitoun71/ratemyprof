@@ -64,11 +64,11 @@ const loadDocumentsFromWeb = async (
     const browser = await puppeteerExtra.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath() || '/usr/bin/chromium-browser', // or the path where Chromium is installed
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
-
+    
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle0' });
 
